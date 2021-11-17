@@ -21,7 +21,7 @@ claim_ids = [
     "b5f8ddf844e6dd89ed1de52f66d43d12c84c9346",
 ]
 
-## Get auth token to check channels
+## Get auth token to check follows
 auth_token = requests.post("https://api.odysee.com/user/new").json()["data"]["auth_token"]
 
 class Proposal:
