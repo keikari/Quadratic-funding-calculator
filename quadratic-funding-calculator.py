@@ -4,11 +4,11 @@ from math import sqrt
 server = "http://localhost:5279"
 proposals = []
 total_scaled = 0
-min_subs = 100
 
 
 # Set these values
 last_accepted_height = 99999999
+min_subs = 100
 LBC_pool = 50000
 claim_ids = [
     "76e3f9293ed5089c452232a2ad0511ecc77922fc",
