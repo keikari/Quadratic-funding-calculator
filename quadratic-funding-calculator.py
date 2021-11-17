@@ -98,7 +98,7 @@ class Proposal:
             # If one channel has add multiple tips, count those as one tip
             if contributor["channel_url"] == channel_url:
                 contributor["tip_amount"] += support_amount
-                contributor["tips"].append(support_amount)
+                contributor["tips"].append(support_amount) # This is for error checking
                 return
         self.contributors.append({"channel_url": channel_url, "tip_amount": support_amount, "tips":[support_amount]})
 
