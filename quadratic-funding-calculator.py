@@ -63,7 +63,8 @@ class Proposal:
                 try:
                     channel_url = channel["result"]["items"][0]["permanent_url"]
                 except IndexError:
-                    channel_name = "NOT_RETURNED_BY_HUB"
+                    # Channel wasn't returned from hub
+                    continue
                 support_amount = float(output["amount"])
 
                 # Only include the support if it was a tip
