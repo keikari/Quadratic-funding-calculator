@@ -109,7 +109,7 @@ class Proposal:
     def calculateScaled(self):
         sum_of_sqrts = 0
         for contributor in self.contributors:
-            self.total_funded += contributor["tip_amount"]
+            self.total_funded += contributor["tip_amount"] # This line is just to collect info
             sum_of_sqrts += sqrt(contributor["tip_amount"])
         self.scaled = (sum_of_sqrts ** 2)
 
