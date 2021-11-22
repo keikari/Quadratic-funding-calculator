@@ -54,10 +54,11 @@ class Proposal:
                 self.addInvalidSupport({"txid": txid, "support_amount": support["support_amount"], "reason": "Block height over %d" % last_accepted_height})
                 continue
 
-            output = transaction["result"]["outputs"][vout]
-            support_amount = float(output["amount"])
+            support_ouput = transaction["result"]["outputs"][vout]
+
+            support_amount = float(support_ouput["amount"])
             try:
-                channel_id = output["signing_channel"]["channel_id"]
+                channel_id = support_ouput["signing_channel"]["channel_id"]
 
                 # If channel is view-rewards channel, or creator's own channel, just skip it
                 if channel_id == "7d0b0f83a195fd1278e1944ddda4cda8d9c01a56":
@@ -72,7 +73,6 @@ class Proposal:
                     self.addInvalidSupport({"txid": txid, "support_amount": support_amount, "reason": "Not enough follows(%d): %s" % (subs, channel_id)})
                     continue
 
-
                 # Do claim_serch to find more info about the signing channel(like name)
                 channel = requests.post(server, json={
                     "method": "claim_search",
@@ -80,15 +80,57 @@ class Proposal:
                         "claim_ids": [channel_id]}}).json()
                 try:
                     channel_url = channel["result"]["items"][0]["permanent_url"]
+                    channel_address = channel["result"]["items"][0]["address"]
                 except IndexError:
                     self.addInvalidSupport({"txid": txid, "support_amount": support_amount, "reason": "Channel not returned by hub"})
                     continue
 
-                # Only include the support if it was a tip
-                if self.claim["address"] == output["address"]:
-                    self.addContribution(channel_url, support_amount)
-                else:
+                # Check that the tip was sent to the proposal-claim's address, and that the tip's signing channel is in different address than addresses associated with the proposal
+                if (self.claim["address"] != support_ouput["address"] or 
+                        self.claim["address"] == channel_address or 
+                        self.claim["signing_channel"]["address"] == channel_address):
                     self.addInvalidSupport({"txid": txid, "support_amount": support_amount, "reason": "Not a tip"})
+                    continue
+
+                # Check addresses of all inputs in the transaction. If any of addresses matches to any of the following, consider tip as a support:
+                # 1. output address
+                # 2. address where proposal claim is
+                # 3. address of the proposal's signing channel 
+                is_tip = True; 
+                tx_inputs = transaction["result"]["inputs"];
+                for tx_input in tx_inputs: 
+                    input_transaction = requests.post(server, json={
+                        "method": "transaction_show",
+                        "params": {
+                            "txid": tx_input["txid"] }}).json()
+                    tx_input_address = input_transaction["result"]["outputs"][tx_input["nout"]]["address"]
+                    if (tx_input_address == support_ouput["address"] or 
+                            tx_input_address == self.claim["address"] or 
+                            tx_input_address == self.claim["signing_channel"]["address"]):
+                        self.addInvalidSupport({"txid": txid, "support_amount": support_amount, "reason": "Not a tip: input %s:%d " % (txid, tx_input["nout"])})
+                        is_tip = False
+                        break
+                        
+
+                if is_tip:
+                    # Check that output hasn't been spent. Prevents looping of tips
+                    active_support_transactions = requests.get('https://chainquery.lbry.com/api/sql?query=SELECT * FROM output WHERE transaction_hash = "%s" AND vout = "%d"' % (txid, vout)).json()["data"];
+                    if len(active_support_transactions) == 0:
+                        # If tip is spent, check if it happened before voting deadline(should allow to re-check tips later)
+                        spent_tx_id = requests.get('https://chainquery.lbry.com/api/sql?query=SELECT * FROM input WHERE prevout_hash = "%s" AND prevout_n %d' % (txid, vout)).json()["data"][0]["transaction_hash"]
+                        spent_height = requests.post(server, json={ 
+                            "method": "transaction_show", 
+                            "params": { 
+                                "txid": spent_tx_id
+                            }
+                        }).json()["result"]["height"]
+                        if spent_height <= last_accepted_height:
+                            self.addInvalidSupport({"txid": txid, "support_amount": support_amount, "reason": "Tip is spent too early"})
+                            continue
+
+                    # If this is reached, consider tip being valid
+                    self.addContribution(channel_url, support_amount)
+
             except KeyError:
                 self.addInvalidSupport({"txid": txid, "support_amount": support_amount, "reason": "Anonymous channel or other error"})
                 pass
@@ -124,7 +166,7 @@ class Proposal:
             print("%.2f LBC by %s" % (contributor["tip_amount"], contributor["channel_url"]))
             for tip in contributor["tips"]:
                 print("- %f" % tip)
-            print(20*'-')
+            print(60*'-')
         self.printInvalidSupports()
         print('\n')
 
@@ -135,16 +177,18 @@ class Proposal:
                 print("txid: %s" % support["txid"])
                 print("amount: %s" % support["support_amount"])
                 print("reason: %s" % support["reason"])
-                print(20*'-')
+                print(60*'-')
 
 
 
 # Starts from here
-for claim_id in claim_ids:
-    claim = requests.post(server, json={
-        "method": "claim_search",
-        "params": {
-            "claim_ids": [claim_id] }}).json()["result"]["items"][0]
+claims = requests.post(server, json={
+    "method": "claim_search",
+    "params": {
+        "claim_ids": claim_ids
+    }
+}).json()["result"]["items"]
+for claim in claims:
     proposals.append(Proposal(claim));
 
 
