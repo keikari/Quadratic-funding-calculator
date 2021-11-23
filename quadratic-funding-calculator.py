@@ -114,10 +114,10 @@ class Proposal:
 
                 if is_tip:
                     # Check that output hasn't been spent. Prevents looping of tips
-                    active_support_transactions = requests.get('https://chainquery.lbry.com/api/sql?query=SELECT * FROM output WHERE transaction_hash = "%s" AND vout = "%d"' % (txid, vout)).json()["data"];
-                    if len(active_support_transactions) == 0:
+                    unspent_support_outputs = requests.get('https://chainquery.lbry.com/api/sql?query=SELECT * FROM output WHERE transaction_hash = "%s" AND vout = "%d" AND is_spent = 0' % (txid, vout)).json()["data"];
+                    if len(unspent_support_outputs) == 0:
                         # If tip is spent, check if it happened before voting deadline(should allow to re-check tips later)
-                        spent_tx_id = requests.get('https://chainquery.lbry.com/api/sql?query=SELECT * FROM input WHERE prevout_hash = "%s" AND prevout_n %d' % (txid, vout)).json()["data"][0]["transaction_hash"]
+                        spent_tx_id = requests.get('https://chainquery.lbry.com/api/sql?query=SELECT * FROM input WHERE prevout_hash = "%s" AND prevout_n = %d' % (txid, vout)).json()["data"][0]["transaction_hash"]
                         spent_height = requests.post(server, json={ 
                             "method": "transaction_show", 
                             "params": { 
