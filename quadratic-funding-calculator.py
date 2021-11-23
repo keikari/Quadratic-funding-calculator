@@ -1,5 +1,6 @@
 import requests
-from math import sqrt
+import os
+from math import sqrt, floor, ceil
 
 server = "http://localhost:5279"
 proposals = []
@@ -21,8 +22,29 @@ claim_ids = [
     "b5f8ddf844e6dd89ed1de52f66d43d12c84c9346",
 ]
 
+def getAuthToken():
+    auth_token_file = os.path.dirname(__file__) + "/auth_token"
+    try: 
+        with open(auth_token_file, "r") as file:
+            auth_token = file.readline()
+            response_error = requests.get("https://api.odysee.com/user/me?auth_token=%s" % auth_token).json()["error"]
+            if response_error != None:
+                # If auth_token expired or other error, just start from fresh
+                raise FileNotFoundError
+            print("Old auth_token found")
+
+    except FileNotFoundError:
+        with open(auth_token_file, "w") as file:
+            auth_token = requests.post("https://api.odysee.com/user/new").json()["data"]["auth_token"]
+            file.write(auth_token)
+            print("New auth_token created")
+
+    return auth_token
+
+
+
 ## Get auth token to check follows
-auth_token = requests.post("https://api.odysee.com/user/new").json()["data"]["auth_token"]
+auth_token = getAuthToken()
 
 class Proposal:
     def __init__(self, claim):
@@ -30,11 +52,17 @@ class Proposal:
         self.contributors = []
         self.total_funded = 0
         self.scaled = 0
+        self.median = 0
+        self.average_contribution = 0
         
         self.invalid_supports = [] # To help confirming the result
 
+        print("Looking for contributions, proposal: %d/%d" % (len(proposals) + 1, len(claim_ids)), end='\r')
         self.getContributions()
         self.calculateScaled()
+        self.calculateMedian()
+        self.average_contribution = self.total_funded/len(self.contributors)
+        
 
     def getContributions(self):
         # Get list of supports from chainquery
@@ -155,11 +183,24 @@ class Proposal:
             sum_of_sqrts += sqrt(contributor["tip_amount"])
         self.scaled = (sum_of_sqrts ** 2)
 
+    def calculateMedian(self):
+        # Sorting this will also make printing use same order
+        self.contributors.sort(reverse=True, key=lambda x: x["tip_amount"])
+        # Use (len - 1) because indexes start from 0. [0, 1, 2, 3, 4] 
+        middle_point = (len(self.contributors) - 1) / 2
+        # This should work for even and odd numbered lists
+        self.median = (self.contributors[floor(middle_point)]["tip_amount"] + self.contributors[ceil(middle_point)]["tip_amount"]) / 2
+
+            
+
     def print(self):
         print("Proposal url: %s" % self.claim["canonical_url"])
         print("Proposal claim_id: %s" % self.claim["claim_id"])
         print("Proposal channel_id: %s" % self.claim["signing_channel"]["claim_id"])
         print("Claim's address: %s" % self.claim["address"])
+        print("Contributors: %s" % len(self.contributors))
+        print("Median contribution: %s" % self.median)
+        print("Average contribution: %s" % self.average_contribution)
         print("Scaled: %.2f" % self.scaled)
         print("Funded amount: %.2f LBC" % self.total_funded)
         for contributor in self.contributors:
@@ -191,9 +232,16 @@ claims = requests.post(server, json={
 for claim in claims:
     proposals.append(Proposal(claim));
 
+proposals.sort(reverse=True, key=lambda x: x.scaled)
 
+all_contributors = []
+total_funded = 0
 for proposal in proposals:
     total_scaled += proposal.scaled
+    total_funded += proposal.total_funded
+    for contributor in proposal.contributors:
+        if not any(collected_contributor["channel_url"] == contributor["channel_url"] for collected_contributor in all_contributors):
+            all_contributors.append(contributor)
     proposal.print()
 
 # Print results
@@ -201,7 +249,12 @@ print(10*"=", "RESULTS", 10*"=")
 for proposal in proposals:
     matched_LBC = LBC_pool * (proposal.scaled/total_scaled)
     print("%s" % proposal.claim["canonical_url"])
+    print("Contributors: %d" % len(proposal.contributors))
+    print("Median contribution: %.2f LBC" % proposal.median)
+    print("Average contribution: %.2f LBC" % proposal.average_contribution)
     print("Funded amount: %.2f LBC" % proposal.total_funded)
     print("Matched amount: %.2f LBC" % matched_LBC)
     print('\n')
 
+print("Total contributors: %d" % len(all_contributors))
+print("Total funded: %.2f LBC" % total_funded)
