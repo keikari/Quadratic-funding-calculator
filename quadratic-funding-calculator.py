@@ -10,6 +10,7 @@ total_scaled = 0
 # Set these values
 last_accepted_height = 99999999
 min_subs = 100
+min_tip = 0
 LBC_pool = 50000
 claim_ids = [
     "76e3f9293ed5089c452232a2ad0511ecc77922fc",
@@ -59,14 +60,15 @@ class Proposal:
 
         print("Looking for contributions, proposal: %d/%d" % (len(proposals) + 1, len(claim_ids)), end='\r')
         self.getContributions()
-        self.calculateScaled()
-        self.calculateMedian()
-        self.average_contribution = self.total_funded/len(self.contributors)
+        if len(self.contributors) > 0:
+            self.calculateScaled()
+            self.calculateMedian()
+            self.average_contribution = self.total_funded/len(self.contributors)
         
 
     def getContributions(self):
         # Get list of supports from chainquery
-        supports = requests.get('https://chainquery.lbry.com/api/sql?query=SELECT * FROM support WHERE supported_claim_id = "%s"' % self.claim["claim_id"]).json();
+        supports = requests.get('https://chainquery.lbry.com/api/sql?query=SELECT * FROM support WHERE supported_claim_id = "%s"AND support_amount >= %f' % (self.claim["claim_id"], min_tip)).json()
 
         # Use lbrynet to get more details about transaction (Looking for support's signing channel)
         for support in supports["data"]: 
