@@ -252,10 +252,10 @@ for proposal in proposals:
     matched_LBC = LBC_pool * (proposal.scaled/total_scaled)
     print("%s" % proposal.claim["canonical_url"])
     print("Contributors: %d" % len(proposal.contributors))
-    print("Median contribution: %.2f LBC" % proposal.median)
+    print("Median contribution:  %.2f LBC" % proposal.median)
     print("Average contribution: %.2f LBC" % proposal.average_contribution)
-    print("Funded amount: %.2f LBC" % proposal.total_funded)
-    print("Matched amount: %.2f LBC" % matched_LBC)
+    print("Funded amount:        %.2f LBC" % proposal.total_funded)
+    print("Matched amount:       %.2f LBC" % matched_LBC)
     print('\n')
 
 print("Total contributors: %d" % len(all_contributors))
