@@ -8,9 +8,10 @@ total_scaled = 0
 
 
 # Set these values
-last_accepted_height = 99999999
+last_accepted_height = 1070908
 min_subs = 100
 min_tip = 0
+max_contribution_amount = 0 # set 0 if not used
 LBC_pool = 50000
 claim_ids = [
     "76e3f9293ed5089c452232a2ad0511ecc77922fc",
@@ -51,7 +52,8 @@ class Proposal:
     def __init__(self, claim):
         self.claim = claim
         self.contributors = []
-        self.total_funded = 0
+        self.funded_amount = 0
+        self.accepted_amount = 0
         self.scaled = 0
         self.median = 0
         self.average_contribution = 0
@@ -63,7 +65,7 @@ class Proposal:
         if len(self.contributors) > 0:
             self.calculateScaled()
             self.calculateMedian()
-            self.average_contribution = self.total_funded/len(self.contributors)
+            self.average_contribution = self.funded_amount/len(self.contributors)
         
 
     def getContributions(self):
@@ -181,8 +183,13 @@ class Proposal:
     def calculateScaled(self):
         sum_of_sqrts = 0
         for contributor in self.contributors:
-            self.total_funded += contributor["tip_amount"] # This line is just to collect info
-            sum_of_sqrts += sqrt(contributor["tip_amount"])
+            accepted_amount = contributor["tip_amount"]
+            if max_contribution_amount > 0:
+                accepted_amount = min(accepted_amount, max_contribution_amount)
+            sum_of_sqrts += sqrt(accepted_amount)
+            # These lines are just to collect info
+            self.funded_amount += contributor["tip_amount"]
+            self.accepted_amount += accepted_amount
         self.scaled = (sum_of_sqrts ** 2)
 
     def calculateMedian(self):
@@ -204,9 +211,10 @@ class Proposal:
         print("Median contribution: %s" % self.median)
         print("Average contribution: %s" % self.average_contribution)
         print("Scaled: %.2f" % self.scaled)
-        print("Funded amount: %.2f LBC" % self.total_funded)
+        print("Funded amount: %.2f LBC" % self.funded_amount)
+        print("Accepted amount: %.2f LBC" % self.accepted_amount)
         for contributor in self.contributors:
-            print("%.2f LBC by %s" % (contributor["tip_amount"], contributor["channel_url"]))
+            print("%.2f (%.2f) LBC by %s" % (min(contributor["tip_amount"], max_contribution_amount), contributor["tip_amount"], contributor["channel_url"]))
             for tip in contributor["tips"]:
                 print("- %f" % tip)
             print(60*'-')
@@ -238,9 +246,11 @@ proposals.sort(reverse=True, key=lambda x: x.scaled)
 
 all_contributors = []
 total_funded = 0
+total_accepted = 0
 for proposal in proposals:
     total_scaled += proposal.scaled
-    total_funded += proposal.total_funded
+    total_funded += proposal.funded_amount
+    total_accepted += proposal.accepted_amount
     for contributor in proposal.contributors:
         if not any(collected_contributor["channel_url"] == contributor["channel_url"] for collected_contributor in all_contributors):
             all_contributors.append(contributor)
@@ -252,11 +262,11 @@ for proposal in proposals:
     matched_LBC = LBC_pool * (proposal.scaled/total_scaled)
     print("%s" % proposal.claim["canonical_url"])
     print("Contributors: %d" % len(proposal.contributors))
-    print("Median contribution:  %.2f LBC" % proposal.median)
-    print("Average contribution: %.2f LBC" % proposal.average_contribution)
-    print("Funded amount:        %.2f LBC" % proposal.total_funded)
+    print("Funded amount:        %.2f LBC" % proposal.funded_amount)
+    print("Accepted amount:      %.2f LBC" % proposal.accepted_amount)
     print("Matched amount:       %.2f LBC" % matched_LBC)
     print('\n')
 
 print("Total contributors: %d" % len(all_contributors))
 print("Total funded: %.2f LBC" % total_funded)
+print("Total accepted: %.2f LBC" % total_accepted)
