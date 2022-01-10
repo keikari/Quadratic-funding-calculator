@@ -1,5 +1,8 @@
 # Quadratic-funding-calculator  
 
+Round details need to be set in quadratic-funding-calculator.py  
+Then just run quadratic-funding-calculator.py, it will keep looking for new supports until it's killed. It will write current results to qtf-result-json.js  
+
 quadratic-funding-calculator.py is used to enter/get needed values for Qtf.py. And to keep actively looking for new contributions.  
 
 Qtf.py contains logic for looking for tips and checking which ones are valid.  
