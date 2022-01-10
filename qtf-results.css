@@ -1,0 +1,24 @@
+* {
+	font-family: arial
+}
+a {
+	color: black
+}
+
+.proposal-row {
+	background-color: #ddd;
+}
+
+.invalid-supports-title-row {
+	background-color: #aaa
+}
+
+.tips-table {
+	border-style: solid;
+	border-color: black;
+}
+
+table {
+	width: 1200px;
+	margin: auto
+}
