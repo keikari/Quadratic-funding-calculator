@@ -1,7 +1,7 @@
 import requests
 from math import sqrt, floor, ceil
 
-# Qtf json
+# Qf json
 # {
 #     round_details: {
 #         LBC_pool,
@@ -45,7 +45,7 @@ from math import sqrt, floor, ceil
 
 
 
-class Qtf:
+class Qf:
     def __init__(self, proposal_claim_ids, round_details, server = "http://localhost:5279", auth_token = None):
         self.proposals = []
         self.round_details = round_details

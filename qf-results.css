@@ -19,6 +19,9 @@ a {
 	font-size: 16px;
 }
 
+.proposal-row {
+	height: 28px
+}
 .proposal-row:nth-child(4n) {
 	background-color: #eee;
 }

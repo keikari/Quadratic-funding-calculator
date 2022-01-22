@@ -2,7 +2,7 @@ import requests
 import os
 import time
 import json as JSON
-from Qtf import Qtf
+from Qf import Qf
 
 server = "http://localhost:5279"
 proposals = []
@@ -35,7 +35,7 @@ def getCurrentHeight():
 def createJSONfile(file_name, json):
     json = JSON.dumps(json)
     with open(file_name, 'w') as file:
-        file.write(f"""var qtf_results = {json}
+        file.write(f"""var qf_results = {json}
     """)
 
 def getAuthToken():
@@ -63,20 +63,20 @@ auth_token = getAuthToken()
 
 
 
-qtf = Qtf(claim_ids, round_details, server, auth_token)
-createJSONfile("qtf-result-json.js", qtf.getJSON())
+qf = Qf(claim_ids, round_details, server, auth_token)
+createJSONfile("qf-result-json.js", qf.getJSON())
 
 # Loop to update values
 height = getCurrentHeight()
 last_height = height
 print("Block: %d" % height)
-print("Supports found(includes view-rewards): %d" % qtf.total_supports_found)
+print("Supports found(includes view-rewards): %d" % qf.total_supports_found)
 while height <= round_details["last_accepted_height"] or True:
     if (last_height < height):
-        qtf.update()
-        createJSONfile("qtf-result-json.js", qtf.getJSON())
+        qf.update()
+        createJSONfile("qf-result-json.js", qf.getJSON())
         print("Block: %d" % height)
-        print("Supports found(includes view-rewards): %d" % qtf.total_supports_found)
+        print("Supports found(includes view-rewards): %d" % qf.total_supports_found)
     time.sleep(15)
     last_height = height
     height = getCurrentHeight()
