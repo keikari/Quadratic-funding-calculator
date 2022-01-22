@@ -51,6 +51,8 @@ class Qf:
         self.round_details = round_details
         self.total_supports_found = 0
         self.total_contributors = 0
+        self.current_block = 0
+        self.server = server
 
         claims = requests.post(server, json={
             "method": "claim_search",
@@ -67,6 +69,7 @@ class Qf:
         self.calculateMatchedAmounts()
         self.calculateTotalSupports()
         self.calculateTotalContributors()
+        self.updateCurrentBlock()
 
     def update(self):
         for proposal in self.proposals:
@@ -74,6 +77,7 @@ class Qf:
         self.calculateMatchedAmounts()
         self.calculateTotalSupports()
         self.calculateTotalContributors()
+        self.updateCurrentBlock()
 
     def calculateMatchedAmounts(self):
         total_scaled = 0
@@ -103,10 +107,16 @@ class Qf:
             total_supports += proposal.support_count
         self.total_supports_found = total_supports
 
+    def updateCurrentBlock(self):
+        self.current_block = requests.post(self.server, json={"method": "status"}).json()["result"]["wallet"]["blocks"]
+
+
+
     def getJSON(self):
         result_json = {
             "round_details": self.round_details,
             "total_contributors": self.total_contributors,
+            "current_block": "~%d" % self.current_block,
             "proposals": []
         }
 
