@@ -1,16 +1,15 @@
 # Quadratic-funding-calculator  
 
 Round details need to be set in quadratic-funding-calculator.py  
-Then just run quadratic-funding-calculator.py, it will keep looking for new supports until it's killed. It will write current results to qtf-result-json.js  
+Then just run quadratic-funding-calculator.py, it will keep looking for new supports until it's killed. It will write current results to qf-result-json.js  
 
 quadratic-funding-calculator.py is used to enter/get needed values for Qtf.py. And to keep actively looking for new contributions.  
 
-Qtf.py contains logic for looking for tips and checking which ones are valid.  
-update() looks for new tips and checks that old ones aren't spent too early. (Follows aren't currenlty being updated actively, don't think this being issue for now, but to be sure to have up to date numbers, script needs to be restarted)  
+Qf.py contains logic for looking for tips and checking which ones are valid.  
+Qf.update() looks for new tips and checks that old ones aren't spent too early. (Follows aren't currenlty being updated actively, don't think this being issue for now, but to be sure to have latest numbers, script needs to be restarted)  
   
   
-Qtf.py spits out json like this.  
-Results of test round can be found in this format from qtf-result-json.js  
+Qf.py spits out json like this.  
 
 ```
 {
