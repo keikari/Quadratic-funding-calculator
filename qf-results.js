@@ -1,7 +1,7 @@
 console.log(qf_results)
 
-const downArrow = "&#8595;";
-const upArrow = "&#8593;";
+const downArrow = "&#9660;";
+const upArrow = "&#9650;";
 
 function getOdyseeURL(lbryURL) {
 	return lbryURL.replace("lbry://", "https://odysee.com/").replaceAll("#", ":");
