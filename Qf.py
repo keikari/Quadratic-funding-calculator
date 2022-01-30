@@ -183,7 +183,7 @@ class Proposal:
                     "txid": spent_tx_id
                 }
             }).json()["result"]["height"]
-            if spent_height <= self.last_accepted_height:
+            if spent_height <= self.last_accepted_height and spent_height > 0:
                 contribution_is_spent_too_early = True
 
         return contribution_is_spent_too_early
