@@ -12,21 +12,20 @@ support_count = 0
 # Set these values
 round_details = {
     "LBC_pool": 50000,
-    "last_accepted_height": 1070908,
+    "last_accepted_height": 10709080,
+    "first_accepted_height": 11135490,
     "min_subs": 100,
     "min_tip": 0,
     "max_contribution_amount": 0 # set 0 if not used
 }
 
 claim_ids = [
-    "76e3f9293ed5089c452232a2ad0511ecc77922fc",
-    "c7cd5669b62bc5cd4386e08d1b0077c3c80568f8",
-    "9f92f500378af5ef0cf1706141bffffed892f876",
-    "99687395cc27ee453dc88dc9da53eb95cc0e9861",
-    "ac47b46e35f37fe79d2b770af7e19c07bf3a4050",
-    "f7a87b602def099215e5fb07dc13e62bdc531044",
-    "270477be5195fb73e2f4e07900f94aba258225c5",
-    "b5f8ddf844e6dd89ed1de52f66d43d12c84c9346",
+    "4b4012c5db509554b3fc3eb9145ecd5d75e70c67",
+    "fc4f7e318aa8a72abcaaa9ef7e68939ff810da95",
+    "2abd078151d4d7802be626497f8d38ca6b002d1c",
+    "49f1f0d64ba28180336c4014d138ff6e9785f49c",
+    "33a885a17a14399c4076bb2d97e8c52ee05fe77e",
+    "20b6a9decb74288178bc74bc58f1d1b5602d9213",
 ]
 
 def getCurrentHeight():

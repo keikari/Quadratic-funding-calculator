@@ -146,6 +146,7 @@ class Proposal:
 
         # Round details
         self.min_tip = round_details["min_tip"] if "min_tip" in round_details else 0;
+        self.first_accepted_height = round_details["first_accepted_height"] if "first_accepted_height" in round_details else 0
         self.last_accepted_height = round_details["last_accepted_height"] if "last_accepted_height" in round_details else 1070908
         self.min_subs = round_details["min_subs"] if "min_subs" in round_details else 100
         self.max_contribution_amount = round_details["max_contribution_amount"] if "max_contribution_amount" in round_details else 0
@@ -221,10 +222,6 @@ class Proposal:
                 "params": {
                     "txid": txid }}).json()
 
-            # Check that tip has been send before deadline, else skip
-            if transaction["result"]["height"] > self.last_accepted_height:
-                self.addInvalidSupport({"txid": txid, "amount": support["support_amount"], "reason": "Block height over %d" % self.last_accepted_height})
-                continue
 
             support_ouput = transaction["result"]["outputs"][vout]
 
@@ -237,14 +234,21 @@ class Proposal:
                     self.addInvalidSupport({"txid": txid, "amount": support_amount, "reason": "View-reward"})
                     continue
                 elif channel_id == self.claim["signing_channel"]["claim_id"]:
-                    self.addInvalidSupport({"txid": txid, "amount": support_amount, "reason": "Same channel than proposal"})
+                    self.addInvalidSupport({"txid": txid, "amount": support_amount, "reason": "Same channel than proposal(Support)"})
                     continue
-                # Check sub count of channel
-                if self.auth_token != None:
-                    subs = requests.post("https://api.odysee.com/subscription/sub_count", data={"auth_token": self.auth_token, "claim_id": [channel_id]} ).json()["data"][0]
-                    if subs < self.min_subs:
-                        self.addInvalidSupport({"txid": txid, "amount": support_amount, "reason": "Not enough follows(%d): %s" % (subs, channel_id)})
-                        continue
+
+                # Check that tip has been send during accepted tipping times, else skip
+                support_height = transaction["result"]["height"]
+                if support_height > self.last_accepted_height:
+                    self.addInvalidSupport({"txid": txid, "amount": support["support_amount"], "reason": "Block height over %d (%d)" % (self.last_accepted_height, support_height)})
+                    continue
+                elif support_height < self.first_accepted_height:
+                    self.addInvalidSupport({"txid": txid, "amount": support["support_amount"], "reason": "Block height under %d (%d)" % (self.first_accepted_height, support_height)})
+                    continue
+                elif support_height <= 0:
+                    # Ignore the transaction if it is found before it's confirmed. These will get re-checked on next block
+                    checked_txids.remove(txid)
+                    continue
 
                 # Do claim_serch to find more info about the signing channel(like name)
                 channel_response = requests.post(self.server, json={
@@ -287,6 +291,12 @@ class Proposal:
                         
 
                 if is_tip:
+                    # Check sub count of channel
+                    if self.auth_token != None:
+                        subs = requests.post("https://api.odysee.com/subscription/sub_count", data={"auth_token": self.auth_token, "claim_id": [channel_id]} ).json()["data"][0]
+                        if subs < self.min_subs:
+                            self.addInvalidSupport({"txid": txid, "amount": support_amount, "reason": "Not enough follows(%d): %s" % (subs, channel_id)})
+                            continue
                     if self.isContributionSpentTooEarly(txid, vout) == True:
                         self.addInvalidSupport({"txid": txid, "amount": support_amount, "reason": "Tip is spent too early"})
                         continue
