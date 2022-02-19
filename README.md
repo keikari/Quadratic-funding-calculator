@@ -39,7 +39,7 @@ Qf.py spits out json like this.
             ],
             invalid_supports: [
                 {
-                    support_amount,
+                    amount,
                     txid,
                     reason
                 }, ...
