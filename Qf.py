@@ -29,7 +29,7 @@ from math import sqrt, floor, ceil
 #             ],
 #             invalid_supports: [
 #                 {
-#                     support_amount,
+#                     amount,
 #                     txid,
 #                     reason
 #                 }, ...
@@ -51,6 +51,8 @@ class Qf:
         self.round_details = round_details
         self.total_supports_found = 0
         self.total_contributors = 0
+        self.total_funded_amount = 0
+        self.total_accepted_amount = 0 
         self.current_block = 0
         self.server = server
 
@@ -67,7 +69,8 @@ class Qf:
             print("Looking for contributions, proposal: %d/%d" % (len(self.proposals) + 1, len(proposal_claim_ids)), end='\r' if len(self.proposals) < len(proposal_claim_ids) - 1 else '\n')
             self.proposals.append(Proposal(claim, round_details, server, auth_token))
         self.calculateMatchedAmounts()
-        self.calculateTotalSupports()
+        self.calculatedTotalAmounts()
+        self.calculateTotalSupportCounts()
         self.calculateTotalContributors()
         self.updateCurrentBlock()
 
@@ -75,7 +78,8 @@ class Qf:
         for proposal in self.proposals:
             proposal.update()
         self.calculateMatchedAmounts()
-        self.calculateTotalSupports()
+        self.calculatedTotalAmounts()
+        self.calculateTotalSupportCounts()
         self.calculateTotalContributors()
         self.updateCurrentBlock()
 
@@ -101,15 +105,23 @@ class Qf:
         self.total_contributors = len(contributors)
 
 
-    def calculateTotalSupports(self):
+    def calculateTotalSupportCounts(self):
         total_supports = 0
         for proposal in self.proposals:
             total_supports += proposal.support_count
         self.total_supports_found = total_supports
 
+    def calculatedTotalAmounts(self):
+        total_accepted_amount = 0
+        total_funded_amount = 0
+        for proposal in self.proposals:
+            total_accepted_amount += proposal.accepted_amount
+            total_funded_amount += proposal.funded_amount
+        self.total_funded_amount = total_funded_amount
+        self.total_accepted_amount = total_accepted_amount
+
     def updateCurrentBlock(self):
         self.current_block = requests.post(self.server, json={"method": "status"}).json()["result"]["wallet"]["blocks"]
-
 
 
     def getJSON(self):
@@ -127,6 +139,29 @@ class Qf:
             result_json["proposals"].append(proposal.getJSON())
 
         return result_json
+
+    def print(self):
+        # Sort here
+        self.proposals.sort(reverse=True, key=lambda x: x.scaled)
+
+        # Print details
+        for proposal in self.proposals:
+            proposal.print()
+
+        # Print results
+        print(10*"=", "RESULTS", 10*"=")
+        for proposal in self.proposals:
+            print("%s" % proposal.claim["canonical_url"])
+            print("Contributors: %d" % len(proposal.contributors))
+            print("Funded amount:        %.2f LBC" % proposal.funded_amount)
+            print("Accepted amount:      %.2f LBC" % proposal.accepted_amount)
+            print("Matched amount:       %.2f LBC" % proposal.matched_amount)
+            print('\n')
+
+        print("Total contributors: %d" % self.total_contributors)
+        print("Total funded: %.2f LBC" % self.total_funded_amount)
+        print("Total accepted: %.2f LBC" % self.total_accepted_amount)
+
         
 class Proposal:
     def __init__(self, claim, round_details, server = "http://localhost:5279", auth_token = None):
@@ -374,4 +409,33 @@ class Proposal:
             "average_amount": self.average_contribution
         }
         return result_json
+
+    def print(self):
+        print("Proposal url: %s" % self.claim["canonical_url"])
+        print("Proposal claim_id: %s" % self.claim["claim_id"])
+        print("Proposal channel_id: %s" % self.claim["signing_channel"]["claim_id"])
+        print("Claim's address: %s" % self.claim["address"])
+        print("Contributors: %s" % len(self.contributors))
+        print("Median contribution: %s" % self.median)
+        print("Average contribution: %s" % self.average_contribution)
+        print("Scaled: %.2f" % self.scaled)
+        print("Funded amount: %.2f LBC" % self.funded_amount)
+        print("Accepted amount: %.2f LBC" % self.accepted_amount)
+        for contributor in self.contributors:
+            print("%.2f (%.2f) LBC by %s" % (contributor["accepted_amount"], contributor["tip_amount"], contributor["channel_claim"]["name"]))
+            for tip in contributor["tips"]:
+                print("- %f" % tip["amount"])
+                print(60*'-')
+        self.printInvalidSupports()
+        print('\n')
+
+    def printInvalidSupports(self, print_view_rewards = False):
+        print("====INVALID SUPPORTS BELOW====")
+        for support in self.invalid_supports:
+            if print_view_rewards or support["reason"] != "View-reward":
+                print("txid: %s" % support["txid"])
+                print("amount: %s" % support["amount"])
+                print("reason: %s" % support["reason"])
+                print(60*'-')
+
 

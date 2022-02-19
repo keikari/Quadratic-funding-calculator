@@ -1,21 +1,19 @@
 import requests
 import os
-import time
-import json as JSON
 from Qf import Qf
 
 server = "http://localhost:5279"
 proposals = []
 total_scaled = 0
-support_count = 0
+
 
 # Set these values
 round_details = {
     "LBC_pool": 50000,
     "last_accepted_height": 10709080,
-    "first_accepted_height": 11135490,
+    "first_accepted_height": 11135000,
     "min_subs": 100,
-    "min_tip": 0,
+    "min_tip": 1,
     "max_contribution_amount": 2500 # set 0 if not used
 }
 
@@ -28,15 +26,6 @@ claim_ids = [
     "20b6a9decb74288178bc74bc58f1d1b5602d9213",
 ]
 
-def getCurrentHeight():
-    return requests.post(server, json={"method": "status"}).json()["result"]["wallet"]["blocks"]
-
-def createJSONfile(file_name, json):
-    json = JSON.dumps(json)
-    with open(file_name, 'w') as file:
-        file.write(f"""var qf_results = {json}
-    """)
-
 def getAuthToken():
     auth_token_file = os.path.dirname(__file__) + "/auth_token"
     try: 
@@ -46,7 +35,7 @@ def getAuthToken():
             if response_error != None:
                 # If auth_token expired or other error, just start from fresh
                 raise FileNotFoundError
-            print("Old auth_token found")
+            print("Existing auth_token found")
 
     except FileNotFoundError:
         with open(auth_token_file, "w") as file:
@@ -57,26 +46,9 @@ def getAuthToken():
     return auth_token
 
 
+
 ## Get auth token to check follows
 auth_token = getAuthToken()
 
-
-
-qf = Qf(claim_ids, round_details, server, auth_token)
-createJSONfile("qf-result-json.js", qf.getJSON())
-
-# Loop to update values
-height = getCurrentHeight()
-last_height = height
-print("Block: %d" % height)
-print("Supports found(includes view-rewards): %d" % qf.total_supports_found)
-while height <= round_details["last_accepted_height"] or True:
-    if (last_height < height):
-        qf.update()
-        createJSONfile("qf-result-json.js", qf.getJSON())
-        print("Block: %d" % height)
-        print("Supports found(includes view-rewards): %d" % qf.total_supports_found)
-    time.sleep(15)
-    last_height = height
-    height = getCurrentHeight()
-
+qf = Qf(claim_ids, round_details, server, auth_token);
+qf.print()
