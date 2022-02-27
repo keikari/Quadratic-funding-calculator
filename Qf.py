@@ -10,7 +10,7 @@ from math import sqrt, floor, ceil
 #         min_tip,
 #         max_contribution_amount,
 #     },
-#     proposals: [ 
+#     proposals: [
 #         {
 #             claim,
 #             contributors: [
@@ -25,7 +25,7 @@ from math import sqrt, floor, ceil
 #                             vout
 #                         }
 #                     ]
-#                 }, ... 
+#                 }, ...
 #             ],
 #             invalid_supports: [
 #                 {
@@ -52,7 +52,7 @@ class Qf:
         self.total_supports_found = 0
         self.total_contributors = 0
         self.total_funded_amount = 0
-        self.total_accepted_amount = 0 
+        self.total_accepted_amount = 0
         self.current_block = 0
         self.server = server
 
@@ -162,7 +162,7 @@ class Qf:
         print("Total funded: %.2f LBC" % self.total_funded_amount)
         print("Total accepted: %.2f LBC" % self.total_accepted_amount)
 
-        
+
 class Proposal:
     def __init__(self, claim, round_details, server = "http://localhost:5279", auth_token = None):
         self.claim = claim
@@ -182,8 +182,8 @@ class Proposal:
         # Round details
         self.min_tip = round_details["min_tip"] if "min_tip" in round_details else 0;
         self.first_accepted_height = round_details["first_accepted_height"] if "first_accepted_height" in round_details else 0
-        self.last_accepted_height = round_details["last_accepted_height"] if "last_accepted_height" in round_details else 1070908
-        self.min_subs = round_details["min_subs"] if "min_subs" in round_details else 100
+        self.last_accepted_height = round_details["last_accepted_height"] if "last_accepted_height" in round_details else 999999999
+        self.min_subs = round_details["min_subs"] if "min_subs" in round_details else 0
         self.max_contribution_amount = round_details["max_contribution_amount"] if "max_contribution_amount" in round_details else 0
 
         self.getContributions()
@@ -193,7 +193,7 @@ class Proposal:
         self.checkContributionsAreStillValid()
         self.getContributions()
         self.calculateValues()
-        
+
     def calculateValues(self):
         # Order in these matters a bit
         self.calculateContributions()
@@ -201,7 +201,7 @@ class Proposal:
         self.calculateAcceptedAmounts()
         self.calculateScaled()
         self.calculateMedian()
-        try: 
+        try:
             self.average_contribution = self.funded_amount/len(self.contributors)
         except ZeroDivisionError:
             self.average_contribution = 0.0
@@ -213,9 +213,9 @@ class Proposal:
         if len(unspent_support_outputs) == 0:
             # If tip is spent, check if it happened before voting deadline(should allow to re-check tips later)
             spent_tx_id = requests.get('https://chainquery.lbry.com/api/sql?query=SELECT * FROM input WHERE prevout_hash = "%s" AND prevout_n = %d' % (txid, vout)).json()["data"][0]["transaction_hash"]
-            spent_height = requests.post(self.server, json={ 
-                "method": "transaction_show", 
-                "params": { 
+            spent_height = requests.post(self.server, json={
+                "method": "transaction_show",
+                "params": {
                     "txid": spent_tx_id
                 }
             }).json()["result"]["height"]
@@ -223,7 +223,7 @@ class Proposal:
                 contribution_is_spent_too_early = True
 
         return contribution_is_spent_too_early
-        
+
     def checkContributionsAreStillValid(self):
         for contributor in self.contributors:
             for tip in contributor["tips"]:
@@ -242,7 +242,7 @@ class Proposal:
         supports = requests.get('https://chainquery.lbry.com/api/sql?query=SELECT * FROM support WHERE supported_claim_id = "%s"AND support_amount >= %f' % (self.claim["claim_id"], self.min_tip)).json()
 
         # Use lbrynet to get more details about transaction (Looking for support's signing channel)
-        for support in supports["data"]: 
+        for support in supports["data"]:
             vout = support["vout"]
             txid = support["transaction_hash_id"]
 
@@ -261,87 +261,90 @@ class Proposal:
             support_ouput = transaction["result"]["outputs"][vout]
 
             support_amount = float(support_ouput["amount"])
+
+            if "signing_channel" not in support_ouput:
+                self.addInvalidSupport({"txid": txid, "amount": support_amount, "reason": "No signing channel"})
+                continue
+
+
+            channel_id = support_ouput["signing_channel"]["channel_id"]
+
+            # If channel is view-rewards channel, or creator's own channel, just skip it
+            if channel_id == "7d0b0f83a195fd1278e1944ddda4cda8d9c01a56":
+                self.addInvalidSupport({"txid": txid, "amount": support_amount, "reason": "View-reward"})
+                continue
+            elif channel_id == self.claim["signing_channel"]["claim_id"]:
+                self.addInvalidSupport({"txid": txid, "amount": support_amount, "reason": "Same channel than proposal(Support)"})
+                continue
+
+            # Check that tip has been send during accepted tipping times, else skip
+            support_height = transaction["result"]["height"]
+            if support_height > self.last_accepted_height:
+                self.addInvalidSupport({"txid": txid, "amount": support["support_amount"], "reason": "Block height over %d (%d)" % (self.last_accepted_height, support_height)})
+                continue
+            elif support_height <= 0:
+                # Ignore the transaction if it is found before it's confirmed. These will get re-checked on next block
+                self.checked_txids.remove(txid)
+                self.support_count -= 1
+                continue
+            elif support_height < self.first_accepted_height:
+                self.addInvalidSupport({"txid": txid, "amount": support["support_amount"], "reason": "Block height under %d (%d)" % (self.first_accepted_height, support_height)})
+                continue
+
+            # Do claim_serch to find more info about the signing channel(like name)
+            channel_response = requests.post(self.server, json={
+                "method": "claim_search",
+                "params": {
+                    "claim_ids": [channel_id]}}).json()
             try:
-                channel_id = support_ouput["signing_channel"]["channel_id"]
+                channel_claim = channel_response["result"]["items"][0]
+                channel_url = channel_claim["permanent_url"]
+                channel_address = channel_claim["address"]
+            except IndexError:
+                self.addInvalidSupport({"txid": txid, "amount": support_amount, "reason": "Channel not returned by hub"})
+                continue
 
-                # If channel is view-rewards channel, or creator's own channel, just skip it
-                if channel_id == "7d0b0f83a195fd1278e1944ddda4cda8d9c01a56":
-                    self.addInvalidSupport({"txid": txid, "amount": support_amount, "reason": "View-reward"})
-                    continue
-                elif channel_id == self.claim["signing_channel"]["claim_id"]:
-                    self.addInvalidSupport({"txid": txid, "amount": support_amount, "reason": "Same channel than proposal(Support)"})
-                    continue
+            # Check that the tip was sent to the proposal-claim's address, and that the tip's signing channel is in different address than addresses associated with the proposal
+            if (self.claim["address"] != support_ouput["address"] or
+                    self.claim["address"] == channel_address or
+                    self.claim["signing_channel"]["address"] == channel_address):
+                self.addInvalidSupport({"txid": txid, "amount": support_amount, "reason": "Not a tip"})
+                continue
 
-                # Check that tip has been send during accepted tipping times, else skip
-                support_height = transaction["result"]["height"]
-                if support_height > self.last_accepted_height:
-                    self.addInvalidSupport({"txid": txid, "amount": support["support_amount"], "reason": "Block height over %d (%d)" % (self.last_accepted_height, support_height)})
-                    continue
-                elif support_height < self.first_accepted_height:
-                    self.addInvalidSupport({"txid": txid, "amount": support["support_amount"], "reason": "Block height under %d (%d)" % (self.first_accepted_height, support_height)})
-                    continue
-                elif support_height <= 0:
-                    # Ignore the transaction if it is found before it's confirmed. These will get re-checked on next block
-                    checked_txids.remove(txid)
-                    continue
-
-                # Do claim_serch to find more info about the signing channel(like name)
-                channel_response = requests.post(self.server, json={
-                    "method": "claim_search",
+            # Check addresses of all inputs in the transaction. If any of addresses matches to any of the following, consider tip as a support:
+            # 1. output address
+            # 2. address where proposal claim is
+            # 3. address of the proposal's signing channel
+            is_tip = True;
+            tx_inputs = transaction["result"]["inputs"];
+            for tx_input in tx_inputs:
+                input_transaction = requests.post(self.server, json={
+                    "method": "transaction_show",
                     "params": {
-                        "claim_ids": [channel_id]}}).json()
-                try:
-                    channel_claim = channel_response["result"]["items"][0]
-                    channel_url = channel_claim["permanent_url"]
-                    channel_address = channel_claim["address"]
-                except IndexError:
-                    self.addInvalidSupport({"txid": txid, "amount": support_amount, "reason": "Channel not returned by hub"})
-                    continue
+                        "txid": tx_input["txid"] }}).json()
+                tx_input_address = input_transaction["result"]["outputs"][tx_input["nout"]]["address"]
+                if (tx_input_address == support_ouput["address"] or
+                        tx_input_address == self.claim["address"] or
+                        tx_input_address == self.claim["signing_channel"]["address"]):
+                    self.addInvalidSupport({"txid": txid, "amount": support_amount, "reason": "Not a tip: input %s:%d " % (txid, tx_input["nout"])})
+                    is_tip = False
+                    break
 
-                # Check that the tip was sent to the proposal-claim's address, and that the tip's signing channel is in different address than addresses associated with the proposal
-                if (self.claim["address"] != support_ouput["address"] or 
-                        self.claim["address"] == channel_address or 
-                        self.claim["signing_channel"]["address"] == channel_address):
-                    self.addInvalidSupport({"txid": txid, "amount": support_amount, "reason": "Not a tip"})
-                    continue
 
-                # Check addresses of all inputs in the transaction. If any of addresses matches to any of the following, consider tip as a support:
-                # 1. output address
-                # 2. address where proposal claim is
-                # 3. address of the proposal's signing channel 
-                is_tip = True; 
-                tx_inputs = transaction["result"]["inputs"];
-                for tx_input in tx_inputs: 
-                    input_transaction = requests.post(self.server, json={
-                        "method": "transaction_show",
-                        "params": {
-                            "txid": tx_input["txid"] }}).json()
-                    tx_input_address = input_transaction["result"]["outputs"][tx_input["nout"]]["address"]
-                    if (tx_input_address == support_ouput["address"] or 
-                            tx_input_address == self.claim["address"] or 
-                            tx_input_address == self.claim["signing_channel"]["address"]):
-                        self.addInvalidSupport({"txid": txid, "amount": support_amount, "reason": "Not a tip: input %s:%d " % (txid, tx_input["nout"])})
-                        is_tip = False
-                        break
-                        
-
-                if is_tip:
-                    # Check sub count of channel
-                    if self.auth_token != None:
-                        subs = requests.post("https://api.odysee.com/subscription/sub_count", data={"auth_token": self.auth_token, "claim_id": [channel_id]} ).json()["data"][0]
-                        if subs < self.min_subs:
-                            self.addInvalidSupport({"txid": txid, "amount": support_amount, "reason": "Not enough follows(%d): %s" % (subs, channel_id)})
-                            continue
-                    if self.isContributionSpentTooEarly(txid, vout) == True:
-                        self.addInvalidSupport({"txid": txid, "amount": support_amount, "reason": "Tip is spent too early"})
+            if is_tip:
+                # Check sub count of channel
+                if self.auth_token != None:
+                    subs = requests.post("https://api.odysee.com/subscription/sub_count", data={"auth_token": self.auth_token, "claim_id": [channel_id]} ).json()["data"][0]
+                    if subs < self.min_subs:
+                        self.addInvalidSupport({"txid": txid, "amount": support_amount, "reason": "Not enough follows(%d): %s" % (subs, channel_id)})
                         continue
+                if self.isContributionSpentTooEarly(txid, vout) == True:
+                    self.addInvalidSupport({"txid": txid, "amount": support_amount, "reason": "Tip is spent too early"})
+                    continue
 
-                    # If this is reached, consider tip being valid
-                    self.addContribution(channel_claim, support_amount, txid, vout)
+                # If this is reached, consider tip being valid
+                self.addContribution(channel_claim, support_amount, txid, vout)
 
-            except KeyError:
-                self.addInvalidSupport({"txid": txid, "amount": support_amount, "reason": "Anonymous channel or other error"})
-                pass
 
     def addContribution(self, channel_claim, support_amount, txid, vout):
         for contributor in self.contributors:
@@ -391,7 +394,7 @@ class Proposal:
         if len(self.contributors) > 0:
             # Sorting this will also make printing use same order
             self.contributors.sort(reverse=True, key=lambda x: x["tip_amount"])
-            # Use (len - 1) because indexes start from 0. [0, 1, 2, 3, 4] 
+            # Use (len - 1) because indexes start from 0. [0, 1, 2, 3, 4]
             middle_point = (len(self.contributors) - 1) / 2
             # This should work for even and odd numbered lists
             self.median = (self.contributors[floor(middle_point)]["tip_amount"] + self.contributors[ceil(middle_point)]["tip_amount"]) / 2

@@ -12,8 +12,8 @@ support_count = 0
 # Set these values
 round_details = {
     "LBC_pool": 50000,
-    "last_accepted_height": 10709080,
-    "first_accepted_height": 11135490,
+    "last_accepted_height": 99999999999,
+    "first_accepted_height": 1114569,
     "min_subs": 100,
     "min_tip": 0,
     "max_contribution_amount": 2500 # set 0 if not used
