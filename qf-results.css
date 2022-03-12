@@ -1,0 +1,51 @@
+* {
+	font-family: arial
+}
+a {
+	color: black
+}
+
+#main_div {
+	width: 1200px;
+	margin: auto;
+}
+
+#title_div {
+	text-align: center
+}
+
+.header_row {
+	background-color: #ddd;
+	font-size: 16px;
+}
+
+.proposal-row {
+	height: 28px
+}
+.proposal-row:nth-child(4n) {
+	background-color: #eee;
+}
+
+.invalid-supports-title-row {
+	background-color: #aaa;
+}
+
+.tips-table {
+	width: 1200px;
+	margin: auto;
+	background-color: #ddd;
+}
+
+#results_table {
+	width: 1200px;
+	margin: auto
+}
+
+#round_details_table tr:nth-child(odd) {
+	background-color: #eee;
+}
+
+#round_details_table tr td:nth-child(odd) {
+	font-weight: bold
+}
+
