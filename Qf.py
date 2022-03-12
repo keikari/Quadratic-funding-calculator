@@ -1,6 +1,17 @@
 import requests
 from math import sqrt, floor, ceil
 
+# These are for checking if signatures are valid
+from binascii import unhexlify
+from hashlib import sha256
+from coincurve import PublicKey as cPublicKey
+from coincurve.ecdsa import deserialize_compact, cdata_to_der
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric.utils import Prehashed
+from cryptography.exceptions import InvalidSignature
+
+
 # Qf json
 # {
 #     round_details: {
@@ -342,6 +353,10 @@ class Proposal:
                     self.addInvalidSupport({"txid": txid, "amount": support_amount, "reason": "Tip is spent too early"})
                     continue
 
+                if not self.is_signature_valid(transaction, channel_claim):
+                    self.addInvalidSupport({"txid": txid, "amount": support_amount, "reason": "Invalid channel signature"})
+                    continue
+
                 # If this is reached, consider tip being valid
                 self.addContribution(channel_claim, support_amount, txid, vout)
 
@@ -400,6 +415,49 @@ class Proposal:
             self.median = (self.contributors[floor(middle_point)]["tip_amount"] + self.contributors[ceil(middle_point)]["tip_amount"]) / 2
         else:
             self.median = 0.0
+
+    def is_signature_valid(self, tx, channel_claim):
+        tx = tx["result"]
+
+        # Get channel's public key as bytes
+        pub_key_bytes = unhexlify(channel_claim["value"]["public_key"])
+
+        # Extract signature
+        # TODO: Figure out why/if this works
+        end_of_signature = "6d6d76a914"
+        signature_length = 128
+        signature_bytes = unhexlify(tx["hex"].split(end_of_signature)[0][::-1][:signature_length][::-1])
+
+        # Get digest value(needs three things)
+        # 1. first txi:nout as bytes
+        txi0_id_bytes = unhexlify(tx["inputs"][0]["txid"])[::-1]
+        txi0_nout_bytes = unhexlify(format(tx["inputs"][0]["nout"], '08b'))[::-1] # Withs some padding
+        txi0_bytes = b''.join([txi0_id_bytes, txi0_nout_bytes])
+
+        # 2. channel_id as bytes
+        channel_bytes = unhexlify(channel_claim["claim_id"])[::-1]
+
+        # 3. message (for supports this is empty)
+        message_bytes = b''
+
+        digest = sha256(b''.join([txi0_bytes, channel_bytes, message_bytes])).digest()
+
+        # Check signature (Basically copied some old code from lbry-sdk, I have no idea what happpens here, but seems to work)
+        signature = cdata_to_der(deserialize_compact(signature_bytes))
+        public_key = cPublicKey(pub_key_bytes)
+        is_valid = public_key.verify(signature, digest, None)
+
+        if not is_valid:
+            # Above may not always detect valid signatures
+            try:
+                pk = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256K1(), pub_key_bytes)
+                pk.verify(signature, digest, ec.ECDSA(Prehashed(hashes.SHA256())))
+                is_valid = True
+            except (ValueError, InvalidSignature):
+                pass
+
+        return is_valid
+
 
     def getJSON(self):
         result_json = {
